@@ -1,0 +1,6 @@
+{
+  "imageName": "image.jpg",
+  "outcome": false,
+  "statusIcon": "honeybee.svg",
+  "description": "A paragraph with *emphasis* and **strong importance**.  \n  A paragraph with *emphasis*  with *emphasis* with *emphasis* and **strong importance**.  \n  A paragraph with *emphasis* and **strong importance**."
+}
