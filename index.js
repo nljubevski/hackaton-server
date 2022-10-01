@@ -5,10 +5,10 @@ const fileUpload = require("express-fileupload");
 const fs = require("fs");
 const app = express();
 const bodyParser = require("body-parser");
-const _ = require("lodash");
+const { orderBy } = require("lodash");
+const myService = require("./service");
 
-const dataDir = "./public/data";
-const statusIconsDir = "./public/statusIcons";
+const { dataDir, statusIconsDir } = myService.dirs;
 
 app.use(express.static("public"));
 
@@ -16,8 +16,10 @@ app.use(cors());
 app.use(fileUpload({ createParentPath: true }));
 app.use(bodyParser.json());
 
-const walkDataDir = (dir) => {
-  var results = [];
+let publicResults = [];
+
+const processFiles = (dir) => {
+  const results = [];
   var list = fs.readdirSync(dir);
   list.forEach((file) => {
     const fileFullPath = dir + "/" + file;
@@ -26,25 +28,42 @@ const walkDataDir = (dir) => {
       const resultFile = JSON.parse(
         fs.readFileSync(fileFullPath + "/result.json")
       );
-      results.push({
+
+      const payload = {
         dir: file,
         ...resultFile,
         birthtime: stat.birthtime,
-      });
+      };
+
+      //   if (payload.uploadedAt === undefined) {
+      //     payload.uploadedAt = 0;
+      //   }
+
+      const isItemProcessingPending = payload.outcome === null;
+      if (isItemProcessingPending) {
+        myService.processFile(payload, () => {
+          publicResults = processFiles(dataDir);
+        });
+      }
+
+      results.push(payload);
     }
   });
-  return _.orderBy(results, ["birthtime"], ["desc"]);
+
+  return orderBy(results, ["birthtime"], ["desc"]);
 };
 
-console.log(walkDataDir(dataDir));
+//process files
+publicResults = processFiles(dataDir);
 
 app.get("/list", (req, res) => {
-  return res.status(200).json(walkDataDir(dataDir));
+  publicResults = processFiles(dataDir);
+  return res.status(200).json(publicResults);
 });
 
-app.get("/download", (req, res) => {
-  const file = `${dataDir}/upload-folder/dramaticpenguin.MOV`;
-  res.download(file); // Set disposition and send it.
+app.get("/status/:id", (req, res) => {
+  const id = req.params.id;
+  return res.status(200).json(publicResults.find((it) => it.dir === id));
 });
 
 app.post("/upload", (req, res) => {
@@ -58,22 +77,24 @@ app.post("/upload", (req, res) => {
   // The name of the input field (i.e. "sampleFile") is used to retrieve the uploaded file
   sampleFile = req.files.sampleFile;
   const fileExtension = sampleFile.name.split(".")[1];
-  const path = dataDir + "/" + uuidv4();
+  const id = uuidv4();
+  const path = dataDir + "/" + id;
   const imageName = "/image." + fileExtension;
   uploadPath = path + imageName;
 
   // Use the mv() method to place the file somewhere on your server
   sampleFile.mv(uploadPath, (err) => {
     if (err) return res.status(500).send(err);
-    fs.writeFileSync(
-      path + "/result.json",
-      JSON.stringify({
-        imageName: imageName,
-        statusIcon: null,
-        outcome: null,
-        description: null,
-      })
-    );
+
+    const payload = {
+      id: id,
+      imageName: imageName,
+      statusIcon: null,
+      outcome: null,
+      description: null,
+    };
+    fs.writeFileSync(path + "/result.json", JSON.stringify(payload));
+    console.log("New data saved...", JSON.stringify(payload, null, 2));
     res.send("File uploaded!");
   });
 });

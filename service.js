@@ -60,11 +60,7 @@ const getRandomOutcome = (previousOutcome, imageToBeProcessed) => {
 const getOutcome = (previousOutcome, imageToBeProcessed) => {
   //
   //
-  //
-  //
   // TODO do real image processing here
-  //
-  //
   //
   //
   const outcome = {
